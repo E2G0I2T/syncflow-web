@@ -1,5 +1,4 @@
-import client from './client';
-import type { Task } from '../types';
+import client from "./client";
 
 export interface BoardSummary {
   id: number;
@@ -24,11 +23,11 @@ export interface CardResponse {
 
 export const boardApi = {
   getBoards: async (): Promise<BoardSummary[]> => {
-    const res = await client.get('/api/boards');
+    const res = await client.get("/api/boards");
     return res.data;
   },
   createBoard: async (title: string) => {
-    const res = await client.post('/api/boards', { title });
+    const res = await client.post("/api/boards", { title });
     return res.data;
   },
   deleteBoard: async (boardId: number) => {
@@ -38,21 +37,41 @@ export const boardApi = {
     const res = await client.get(`/api/boards/${boardId}/cards`);
     return res.data;
   },
-  createCard: async (boardId: number, title: string, columnKey: string): Promise<CardResponse> => {
-    const res = await client.post(`/api/boards/${boardId}/cards`, { title, columnKey });
+  createCard: async (
+    boardId: number,
+    title: string,
+    columnKey: string,
+  ): Promise<CardResponse> => {
+    const res = await client.post(`/api/boards/${boardId}/cards`, {
+      title,
+      columnKey,
+    });
     return res.data;
   },
 };
 
 export const cardApi = {
   moveCard: async (cardId: number, columnKey: string, position: number) => {
-    const res = await client.patch(`/api/cards/${cardId}/move`, { columnKey, position });
+    const res = await client.patch(`/api/cards/${cardId}/move`, {
+      columnKey,
+      position,
+    });
     return res.data;
   },
   deleteCard: async (cardId: number) => {
     await client.delete(`/api/cards/${cardId}`);
   },
-  updateCard: async (cardId: number, data: Partial<Task>) => {
+  updateCard: async (
+    cardId: number,
+    data: {
+      title?: string;
+      description?: string;
+      assignee?: string;
+      startDate?: string;
+      dueDate?: string;
+      labels?: { id?: number; text: string; color: string }[];
+    },
+  ) => {
     const res = await client.put(`/api/cards/${cardId}`, data);
     return res.data;
   },

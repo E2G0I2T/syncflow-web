@@ -40,6 +40,11 @@ interface BoardState {
   isLoading: boolean;
   currentBoardId: number | null;
 
+  updateTask: (
+    taskId: number,
+    colId: ColumnId,
+    patch: Partial<Task>,
+  ) => Promise<void>;
   applyRemoteMove: (taskId: number, fromCol: ColumnId, toCol: ColumnId) => void;
   loadBoard: (boardId: number) => Promise<void>;
   joinBoard: (boardId: number) => void;
@@ -74,6 +79,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const socket = connectSocket();
     socket.emit("join_board", { boardId });
 
+    socket.off("card_moved");
     socket.on("card_moved", ({ cardId, fromCol, toCol }) => {
       get().applyRemoteMove(cardId, fromCol as ColumnId, toCol as ColumnId);
     });
@@ -167,5 +173,46 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
+  updateTask: async (taskId, colId, patch) => {
+    const task = get().tasks[colId].find((t) => t.id === taskId);
+    if (!task) return;
+    const updatedTask = { ...task, ...patch };
+
+    set((state) => ({
+      tasks: {
+        ...state.tasks,
+        [colId]: state.tasks[colId].map((t) =>
+          t.id === taskId ? updatedTask : t,
+        ),
+      },
+    }));
+
+    try {
+      await cardApi.updateCard(taskId, {
+        title: updatedTask.content,
+        description: updatedTask.description,
+        assignee: updatedTask.assignee,
+        startDate: updatedTask.startDate,
+        dueDate: updatedTask.dueDate,
+        labels: updatedTask.labels?.map((l) => ({
+          id: l.id,
+          text: l.text,
+          color: l.color,
+        })),
+      });
+    } catch {
+      console.warn("카드 수정 실패");
+    }
+  },
+
   clearBoard: () => set({ tasks: emptyTasks(), currentBoardId: null }),
 }));
+
+export const LABEL_PRESETS = [
+  { text: "기획", color: "#845EF7" },
+  { text: "디자인", color: "#F06595" },
+  { text: "개발", color: "#339AF0" },
+  { text: "테스트", color: "#20C997" },
+  { text: "긴급", color: "#F03E3E" },
+  { text: "문서", color: "#F59F00" },
+];
