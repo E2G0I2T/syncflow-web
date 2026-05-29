@@ -31,10 +31,13 @@ const BoardPage = () => {
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTabId, setActiveTabId] = useState<ColumnId>("todo");
+  const [showTabBar, setShowTabBar] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Partial<Record<ColumnId, HTMLDivElement>>>({});
-  const [showTabBar, setShowTabBar] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -47,19 +50,15 @@ const BoardPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numericId]);
 
-  // 스크롤 위치에 따라 활성 탭 업데이트
   useEffect(() => {
     const board = boardRef.current;
     if (!board) return;
-
     const handleScroll = () => {
       const scrollLeft = board.scrollLeft;
       const boardWidth = board.clientWidth;
       const center = scrollLeft + boardWidth / 2;
-
       let closestCol: ColumnId = "todo";
       let closestDist = Infinity;
-
       COLUMNS.forEach((col) => {
         const el = columnRefs.current[col.id];
         if (!el) return;
@@ -70,10 +69,8 @@ const BoardPage = () => {
           closestCol = col.id;
         }
       });
-
       setActiveTabId(closestCol);
     };
-
     board.addEventListener("scroll", handleScroll, { passive: true });
     return () => board.removeEventListener("scroll", handleScroll);
   }, []);
@@ -82,17 +79,26 @@ const BoardPage = () => {
     if (isLoading) return;
     const board = boardRef.current;
     if (!board) return;
-
-    // 초기값 즉시 체크
     setShowTabBar(board.scrollWidth > board.clientWidth);
-
     const observer = new ResizeObserver(() => {
       setShowTabBar(board.scrollWidth > board.clientWidth);
     });
-
     observer.observe(board);
     return () => observer.disconnect();
   }, [isLoading]);
+
+  // 검색창 열릴 때 자동 포커스
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    }
+  }, [searchOpen]);
+
+  // 검색창 닫기 핸들러
+  const handleSearchClose = () => {
+    setSearchQuery("");
+    setSearchOpen(false);
+  };
 
   const handleTabClick = (colId: ColumnId) => {
     const el = columnRefs.current[colId];
@@ -117,6 +123,22 @@ const BoardPage = () => {
     moveTask(Number(active.id), fromCol, toCol);
   };
 
+  // 검색 필터링 — 제목, 담당자 기준
+  const filterTasks = (colTasks: Task[]) => {
+    if (!searchQuery.trim()) return colTasks;
+    const q = searchQuery.toLowerCase();
+    return colTasks.filter(
+      (t) =>
+        t.content.toLowerCase().includes(q) ||
+        t.assignee?.toLowerCase().includes(q),
+    );
+  };
+
+  // 검색 결과 총 개수
+  const totalMatches = searchQuery.trim()
+    ? COLUMNS.reduce((acc, col) => acc + filterTasks(tasks[col.id]).length, 0)
+    : null;
+
   if (isLoading) {
     return <div style={styles.center}>보드 불러오는 중...</div>;
   }
@@ -128,7 +150,38 @@ const BoardPage = () => {
         <button style={styles.backBtn} onClick={() => navigate("/boards")}>
           ‹ 보드 목록
         </button>
-        <h2 style={styles.title}>{boardTitle}</h2>
+
+        {/* 검색창 */}
+        {searchOpen ? (
+          <div style={styles.searchBox}>
+            <span style={styles.searchIcon}>🔍</span>
+            <input
+              ref={searchRef}
+              style={styles.searchInput}
+              placeholder="카드 제목, 담당자 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {totalMatches !== null && (
+              <span style={styles.matchCount}>{totalMatches}건</span>
+            )}
+            <button style={styles.searchCloseBtn} onClick={handleSearchClose}>
+              ✕
+            </button>
+          </div>
+        ) : (
+          <h2 style={styles.title}>{boardTitle}</h2>
+        )}
+
+        <button
+          style={styles.searchToggleBtn}
+          onClick={() =>
+            searchOpen ? handleSearchClose() : setSearchOpen(true)
+          }
+          title="검색"
+        >
+          🔍
+        </button>
       </div>
 
       {/* 컬럼 탭바 */}
@@ -154,7 +207,7 @@ const BoardPage = () => {
                     activeTabId === col.id ? col.color : "#e0e0e0",
                 }}
               >
-                {tasks[col.id].length}
+                {filterTasks(tasks[col.id]).length}
               </span>
             </button>
           ))}
@@ -175,7 +228,7 @@ const BoardPage = () => {
                 if (el) columnRefs.current[col.id] = el;
               }}
             >
-              <KanbanColumn column={col} tasks={tasks[col.id]} />
+              <KanbanColumn column={col} tasks={filterTasks(tasks[col.id])} />
             </div>
           ))}
         </div>
@@ -217,10 +270,54 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
     cursor: "pointer",
     fontWeight: "bold",
+    flexShrink: 0,
   },
-  title: { margin: 0, fontSize: 18, fontWeight: "bold", color: "#222" },
-
-  // 탭바
+  title: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#222",
+    flex: 1,
+  },
+  searchBox: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 10,
+    padding: "6px 12px",
+  },
+  searchIcon: { fontSize: 14, color: "#aaa" },
+  searchInput: {
+    flex: 1,
+    border: "none",
+    background: "none",
+    fontSize: 15,
+    outline: "none",
+    color: "#333",
+  },
+  matchCount: {
+    fontSize: 12,
+    color: "#4C6EF5",
+    fontWeight: "bold",
+    flexShrink: 0,
+  },
+  searchCloseBtn: {
+    background: "none",
+    border: "none",
+    color: "#aaa",
+    cursor: "pointer",
+    fontSize: 14,
+    flexShrink: 0,
+  },
+  searchToggleBtn: {
+    background: "none",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    flexShrink: 0,
+  },
   tabBar: {
     display: "flex",
     backgroundColor: "#fff",
@@ -249,8 +346,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: "bold",
     transition: "background-color 0.2s",
   },
-
-  // 보드
   board: {
     display: "flex",
     gap: 16,

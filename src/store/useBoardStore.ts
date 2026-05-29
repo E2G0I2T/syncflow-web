@@ -97,7 +97,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   moveTask: (taskId, fromCol, toCol) => {
     if (fromCol === toCol) return;
 
-    // 낙관적 업데이트
     set((state) => {
       const task = state.tasks[fromCol].find((t) => t.id === taskId);
       if (!task) return state;
@@ -110,7 +109,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       };
     });
 
-    // 소켓으로 이벤트 발송
     const socket = getSocket();
     const boardId = get().currentBoardId;
     if (socket && boardId) {
@@ -127,7 +125,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  // 원격 이벤트 수신 시 — 소켓 발송 없이 UI만 업데이트
   applyRemoteMove: (taskId, fromCol, toCol) => {
     if (fromCol === toCol) return;
     set((state) => {

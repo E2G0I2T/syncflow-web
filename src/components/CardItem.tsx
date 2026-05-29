@@ -131,7 +131,7 @@ const CardItem = ({ task, columnId, overlay = false }: Props) => {
         )}
       </div>
 
-      {/* 드롭다운 메뉴 — position fixed로 카드 밖에 렌더링 */}
+      {/* 드롭다운 메뉴 */}
       {menuOpen && (
         <div
           ref={menuRef}
@@ -221,8 +221,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   meta: { display: "flex", gap: 10, marginTop: 8 },
   metaText: { fontSize: 12, color: "#888" },
-
-  // 드롭다운 메뉴
   menu: {
     position: "fixed",
     zIndex: 9999,
